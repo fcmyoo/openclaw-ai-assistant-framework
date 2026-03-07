@@ -1,0 +1,41 @@
+{
+  "agents": {
+    "list": [
+      {
+        "id": "private_assistant",
+        "name": "private_assistant",
+        "description": "用户专属技术助手",
+        "workspace": "/root/.openclaw/workspace-private-assistant",
+        "model": {
+          "primary": "packycode/gpt-5.3-codex"
+        },
+        "memorySearch": {
+          "enabled": true,
+          "provider": "openai",
+          "remote": {
+            "baseUrl": "https://openrouter.ai/api/v1",
+            "apiKey": "${OPENROUTER_API_KEY}",
+            "headers": {
+              "HTTP-Referer": "https://openclaw.ai",
+              "X-Title": "OpenClaw"
+            }
+          },
+          "model": "text-embedding-3-small"
+        },
+        "compaction": {
+          "mode": "safeguard"
+        },
+        "maxConcurrent": 2
+      }
+    ]
+  },
+  "bindings": [
+    {
+      "agentId": "private_assistant",
+      "match": {
+        "channel": "discord",
+        "accountId": "private"
+      }
+    }
+  ]
+}

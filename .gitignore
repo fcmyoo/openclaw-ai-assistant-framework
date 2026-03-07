@@ -22,6 +22,8 @@ data/
 *.json
 !config/model-pools.json
 !config/skill-learning-schedule.json
+!runtime/private-assistant/openclaw.agent-patch.example.json
+!runtime/private-assistant/openclaw.merge-snippet.json
 
 # 日志文件
 logs/
@@ -52,3 +54,4 @@ __pycache__/
 # 其他
 .env
 .env.*
+!runtime/private-assistant/.env.example
