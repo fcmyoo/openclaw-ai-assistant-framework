@@ -34,6 +34,8 @@ skills/
 *.temp
 *.swp
 *.swo
+*.pyc
+__pycache__/
 .DS_Store
 
 # 状态文件

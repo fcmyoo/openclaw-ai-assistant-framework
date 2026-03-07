@@ -1,145 +1,173 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Model Pool Health Check Script v2.0
-Check model health every 6 hours
-Support 4 pools: fast, smart, text, vision
+模型池健康检查脚本
+
+默认从 OPENCLAW_WORKSPACE 读取配置，也支持命令行参数覆盖。
 """
 
+import argparse
 import json
-import subprocess
-from datetime import datetime
-import sys
 import os
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
 
-CONFIG_FILE = '/home/zzyuzhangxing/.openclaw/workspace/config/model-pools.json'
-LOG_FILE = '/home/zzyuzhangxing/.openclaw/workspace/logs/model-health.log'
-STATUS_FILE = '/home/zzyuzhangxing/.openclaw/workspace/data/model-health-status.json'
 
-def log(msg, level='INFO'):
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    log_msg = f"[{timestamp}] [{level}] {msg}"
-    print(log_msg)
+DEFAULT_WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", os.path.expanduser("~/.openclaw/workspace"))
+DEFAULT_CONFIG_FILE = Path(DEFAULT_WORKSPACE) / "config" / "model-pools.json"
+DEFAULT_LOG_FILE = Path(DEFAULT_WORKSPACE) / "logs" / "model-health.log"
+DEFAULT_STATUS_FILE = Path(DEFAULT_WORKSPACE) / "data" / "model-health-status.json"
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="检查 OpenClaw 模型池健康状态")
+    parser.add_argument("--workspace", default=DEFAULT_WORKSPACE, help="OpenClaw 工作区目录")
+    parser.add_argument("--config", help="模型池配置文件路径")
+    parser.add_argument("--log-file", help="日志文件路径")
+    parser.add_argument("--status-file", help="状态输出文件路径")
+    parser.add_argument("--command-timeout", type=int, default=10, help="openclaw 命令超时时间，单位秒")
+    return parser.parse_args()
+
+
+def log(message, log_file, level="INFO"):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] [{level}] {message}"
+    print(line)
+
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+
+
+def run_openclaw_models_status(timeout_seconds):
+    return subprocess.run(
+        ["openclaw", "models", "status"],
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds,
+        check=False,
+    )
+
+
+def check_model_health(model_name, timeout_seconds):
+    checked_at = datetime.now().isoformat()
+
     try:
-        with open(LOG_FILE, 'a', encoding='utf-8') as f:
-            f.write(log_msg + '\n')
-    except:
-        pass
-
-def check_model_health(model_name):
-    try:
-        result = subprocess.run(
-            ['openclaw', 'models', 'status'],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        
-        if result.returncode == 0:
-            if model_name in result.stdout:
-                return {
-                    'status': 'healthy',
-                    'api_reachable': True,
-                    'last_check': datetime.now().isoformat()
-                }
-            else:
-                return {
-                    'status': 'not_configured',
-                    'api_reachable': False,
-                    'last_check': datetime.now().isoformat()
-                }
-        else:
-            return {
-                'status': 'error',
-                'api_reachable': False,
-                'error': result.stderr[:100] if result.stderr else 'Unknown error',
-                'last_check': datetime.now().isoformat()
-            }
-    except Exception as e:
+        result = run_openclaw_models_status(timeout_seconds)
+    except FileNotFoundError:
         return {
-            'status': 'error',
-            'api_reachable': False,
-            'error': str(e)[:100],
-            'last_check': datetime.now().isoformat()
+            "status": "error",
+            "api_reachable": False,
+            "error": "openclaw command not found",
+            "last_check": checked_at,
         }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "api_reachable": False,
+            "error": str(exc)[:160],
+            "last_check": checked_at,
+        }
+
+    if result.returncode != 0:
+        return {
+            "status": "error",
+            "api_reachable": False,
+            "error": (result.stderr or "unknown error").strip()[:160],
+            "last_check": checked_at,
+        }
+
+    if model_name in result.stdout:
+        return {
+            "status": "healthy",
+            "api_reachable": True,
+            "last_check": checked_at,
+        }
+
+    return {
+        "status": "not_configured",
+        "api_reachable": False,
+        "last_check": checked_at,
+    }
+
+
+def load_config(config_file):
+    with Path(config_file).open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
 
 def main():
-    log("=" * 60)
-    log("Model Pool Health Check v2.0")
-    log("=" * 60)
-    
-    try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-    except Exception as e:
-        log(f"ERROR: Failed to read config: {e}", 'ERROR')
-        return
-    
-    health_status = {
-        'timestamp': datetime.now().isoformat(),
-        'pools': {}
-    }
-    
-    pool_names = ['fast', 'smart', 'text', 'vision']
-    
-    for pool_name in pool_names:
-        if pool_name not in config['pools']:
-            continue
-            
-        pool_config = config['pools'][pool_name]
-        log(f"\nChecking {pool_config['name']} ({pool_name})")
-        
-        pool_status = {
-            'name': pool_config['name'],
-            'primary': {},
-            'fallback': {}
-        }
-        
-        primary_model = pool_config['primary']
-        log(f"  Primary: {primary_model}")
-        pool_status['primary'] = check_model_health(primary_model)
-        log(f"    Status: {pool_status['primary']['status']}")
-        
-        fallback_model = pool_config['fallback']
-        log(f"  Fallback: {fallback_model}")
-        pool_status['fallback'] = check_model_health(fallback_model)
-        log(f"    Status: {pool_status['fallback']['status']}")
-        
-        health_status['pools'][pool_name] = pool_status
-    
-    try:
-        os.makedirs(os.path.dirname(STATUS_FILE), exist_ok=True)
-        with open(STATUS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(health_status, f, indent=2, ensure_ascii=False)
-        log(f"\nStatus saved: {STATUS_FILE}")
-    except Exception as e:
-        log(f"WARNING: Failed to save status: {e}", 'WARN')
-    
-    log("\n" + "=" * 60)
-    log("Health Check Report")
-    log("=" * 60)
-    
-    healthy_count = 0
-    total_count = len(health_status['pools'])
-    
-    for pool_name, pool_status in health_status['pools'].items():
-        primary_status = pool_status['primary']['status']
-        fallback_status = pool_status['fallback']['status']
-        
-        if primary_status == 'healthy':
-            healthy_count += 1
-        
-        status_icon = 'OK' if primary_status == 'healthy' else 'WARN'
-        log(f"{status_icon} {pool_status['name']}: Primary[{primary_status}] Fallback[{fallback_status}]")
-    
-    health_rate = (healthy_count / total_count * 100) if total_count > 0 else 0
-    log(f"\nHealth Rate: {healthy_count}/{total_count} ({health_rate:.0f}%)")
-    log("=" * 60)
+    args = parse_args()
+    workspace = Path(args.workspace)
+    config_file = Path(args.config) if args.config else workspace / "config" / "model-pools.json"
+    log_file = Path(args.log_file) if args.log_file else workspace / "logs" / "model-health.log"
+    status_file = Path(args.status_file) if args.status_file else workspace / "data" / "model-health-status.json"
 
-if __name__ == '__main__':
+    log("=" * 60, log_file)
+    log("模型池健康检查开始", log_file)
+    log("=" * 60, log_file)
+
     try:
-        main()
-    except Exception as e:
-        log(f"ERROR: Health check failed: {e}", 'ERROR')
-        import traceback
-        traceback.print_exc()
+        config = load_config(config_file)
+    except Exception as exc:
+        log(f"读取配置失败: {exc}", log_file, "ERROR")
+        return 1
+
+    pools = config.get("pools", {})
+    health_status = {
+        "timestamp": datetime.now().isoformat(),
+        "workspace": str(workspace),
+        "config_file": str(config_file),
+        "pools": {},
+    }
+
+    for pool_name in ["fast", "smart", "text", "vision"]:
+        pool_config = pools.get(pool_name)
+        if not pool_config:
+            continue
+
+        pool_display_name = pool_config.get("name", pool_name)
+        primary_model = pool_config.get("primary")
+        fallback_model = pool_config.get("fallback")
+
+        log(f"检查模型池: {pool_display_name} ({pool_name})", log_file)
+        pool_status = {"name": pool_display_name, "primary": {}, "fallback": {}}
+
+        if primary_model:
+            pool_status["primary"] = check_model_health(primary_model, args.command_timeout)
+            log(f"  Primary {primary_model}: {pool_status['primary']['status']}", log_file)
+        else:
+            pool_status["primary"] = {"status": "missing", "api_reachable": False}
+            log("  Primary missing", log_file, "WARN")
+
+        if fallback_model:
+            pool_status["fallback"] = check_model_health(fallback_model, args.command_timeout)
+            log(f"  Fallback {fallback_model}: {pool_status['fallback']['status']}", log_file)
+        else:
+            pool_status["fallback"] = {"status": "missing", "api_reachable": False}
+            log("  Fallback missing", log_file, "WARN")
+
+        health_status["pools"][pool_name] = pool_status
+
+    status_file.parent.mkdir(parents=True, exist_ok=True)
+    with status_file.open("w", encoding="utf-8") as handle:
+        json.dump(health_status, handle, indent=2, ensure_ascii=False)
+
+    total_count = len(health_status["pools"])
+    healthy_count = sum(
+        1 for pool_status in health_status["pools"].values() if pool_status["primary"].get("status") == "healthy"
+    )
+    health_rate = (healthy_count / total_count * 100) if total_count else 0
+
+    log("=" * 60, log_file)
+    log(f"健康率: {healthy_count}/{total_count} ({health_rate:.0f}%)", log_file)
+    log(f"状态文件: {status_file}", log_file)
+    log("=" * 60, log_file)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,137 +1,123 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-提取skill知识点
+提取单个 skill 的基础知识点。
 """
 
-import os
+import argparse
 import json
+import os
 from datetime import datetime
+from pathlib import Path
 
-WORKSPACE = '/home/zzyuzhangxing/.openclaw/workspace'
-SKILLS_DIR = f'{WORKSPACE}/skills'
-KNOWLEDGE_BASE = f'{WORKSPACE}/data/skill-knowledge-base.json'
 
-def extract_skill_knowledge(skill_name):
-    """提取单个skill的知识点"""
-    skill_dir = f'{SKILLS_DIR}/{skill_name}'
+DEFAULT_WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", os.path.expanduser("~/.openclaw/workspace"))
 
-    if not os.path.exists(skill_dir):
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="提取单个 skill 的基础知识点")
+    parser.add_argument("skill_name", help="技能目录名")
+    parser.add_argument("--workspace", default=DEFAULT_WORKSPACE, help="OpenClaw 工作区目录")
+    return parser.parse_args()
+
+
+def extract_skill_knowledge(skill_name, skills_dir):
+    skill_dir = skills_dir / skill_name
+    if not skill_dir.exists():
         return None
 
     knowledge = {
-        'name': skill_name,
-        'category': infer_category(skill_name),
-        'knowledge_points': [],
-        'best_practices': [],
-        'patterns': [],
-        'learned_at': datetime.now().isoformat()
+        "name": skill_name,
+        "category": infer_category(skill_name),
+        "knowledge_points": [],
+        "best_practices": [],
+        "patterns": [],
+        "learned_at": datetime.now().isoformat(),
     }
 
-    # 读取SKILL.md（如果存在）
-    skill_md = f'{skill_dir}/SKILL.md'
-    if os.path.exists(skill_md):
-        with open(skill_md, 'r', encoding='utf-8') as f:
-            content = f.read()
+    skill_md = skill_dir / "SKILL.md"
+    if skill_md.exists():
+        content = skill_md.read_text(encoding="utf-8")
+        knowledge["knowledge_points"] = extract_points(content)
 
-        # 提取知识点
-        knowledge['knowledge_points'] = extract_points(content)
-
-    # 读取主要代码文件
-    main_files = ['index.js', 'main.py', 'skill.js', 'skill.py']
-    for filename in main_files:
-        filepath = f'{skill_dir}/{filename}'
-        if os.path.exists(filepath):
-            with open(filepath, 'r', encoding='utf-8') as f:
-                code = f.read()
-
-            # 提取最佳实践
-            knowledge['best_practices'] = extract_best_practices(code)
-
-            # 提取设计模式
-            knowledge['patterns'] = extract_patterns(code)
+    for filename in ["index.js", "main.py", "skill.js", "skill.py"]:
+        filepath = skill_dir / filename
+        if not filepath.exists():
+            continue
+        code = filepath.read_text(encoding="utf-8")
+        knowledge["best_practices"] = extract_best_practices(code)
+        knowledge["patterns"] = extract_patterns(code)
 
     return knowledge
 
+
 def extract_points(content):
-    """从文档中提取知识点"""
     points = []
+    for line in content.split("\n"):
+        if line.startswith("# ") or line.startswith("## "):
+            points.append(line.strip("# ").strip())
+    return points[:5]
 
-    # 简单实现：提取标题和关键词
-    lines = content.split('\n')
-    for line in lines:
-        if line.startswith('# ') or line.startswith('## '):
-            points.append(line.strip('# '))
-
-    return points[:5]  # 最多5个
 
 def extract_best_practices(code):
-    """从代码中提取最佳实践"""
     practices = []
-
-    # 简单实现：提取注释中的最佳实践
-    lines = code.split('\n')
-    for line in lines:
-        if 'best practice' in line.lower() or '最佳实践' in line:
+    for line in code.split("\n"):
+        if "best practice" in line.lower() or "最佳实践" in line:
             practices.append(line.strip())
+    return practices[:3]
 
-    return practices[:3]  # 最多3个
 
 def extract_patterns(code):
-    """从代码中提取设计模式"""
     patterns = []
-
-    # 简单实现：检测常见模式
-    if 'async' in code and 'await' in code:
-        patterns.append('异步模式')
-    if 'class' in code:
-        patterns.append('面向对象')
-    if 'try' in code and 'catch' in code:
-        patterns.append('错误处理')
-
+    if "async" in code and "await" in code:
+        patterns.append("异步模式")
+    if "class" in code:
+        patterns.append("面向对象")
+    if "try" in code and "catch" in code:
+        patterns.append("错误处理")
     return patterns
 
+
 def infer_category(skill_name):
-    """推断skill类别"""
-    if 'image' in skill_name or 'photo' in skill_name:
-        return '视觉创作'
-    elif 'video' in skill_name:
-        return '视频制作'
-    elif 'content' in skill_name or 'writing' in skill_name:
-        return '内容创作'
-    elif 'social' in skill_name or 'twitter' in skill_name:
-        return '社交媒体'
-    elif 'analytics' in skill_name or 'data' in skill_name:
-        return '数据分析'
+    if "image" in skill_name or "photo" in skill_name:
+        return "视觉创作"
+    if "video" in skill_name:
+        return "视频制作"
+    if "content" in skill_name or "writing" in skill_name:
+        return "内容创作"
+    if "social" in skill_name or "twitter" in skill_name:
+        return "社交媒体"
+    if "analytics" in skill_name or "data" in skill_name:
+        return "数据分析"
+    return "通用"
+
+
+def save_knowledge(knowledge, knowledge_base):
+    if knowledge_base.exists():
+        kb = json.loads(knowledge_base.read_text(encoding="utf-8"))
     else:
-        return '通用'
+        kb = {"skills": []}
 
-def save_knowledge(knowledge):
-    """保存知识点到知识库"""
-    # 读取现有知识库
-    if os.path.exists(KNOWLEDGE_BASE):
-        with open(KNOWLEDGE_BASE, 'r', encoding='utf-8') as f:
-            kb = json.load(f)
-    else:
-        kb = {'skills': []}
+    kb["skills"].append(knowledge)
+    knowledge_base.parent.mkdir(parents=True, exist_ok=True)
+    knowledge_base.write_text(json.dumps(kb, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # 添加新知识
-    kb['skills'].append(knowledge)
 
-    # 保存
-    os.makedirs(os.path.dirname(KNOWLEDGE_BASE), exist_ok=True)
-    with open(KNOWLEDGE_BASE, 'w', encoding='utf-8') as f:
-        json.dump(kb, f, ensure_ascii=False, indent=2)
+def main():
+    args = parse_args()
+    workspace = Path(args.workspace)
+    skills_dir = workspace / "skills"
+    knowledge_base = workspace / "data" / "skill-knowledge-base.json"
+    knowledge = extract_skill_knowledge(args.skill_name, skills_dir)
 
-if __name__ == '__main__':
-    import sys
-    if len(sys.argv) > 1:
-        skill_name = sys.argv[1]
-        knowledge = extract_skill_knowledge(skill_name)
-        if knowledge:
-            save_knowledge(knowledge)
-            print(f"✅ 已提取 {skill_name} 的知识点")
-        else:
-            print(f"❌ 无法提取 {skill_name} 的知识点")
-    else:
-        print("用法: python3 extract-skill-knowledge.py <skill-name>")
+    if not knowledge:
+        print(f"无法提取 {args.skill_name} 的知识点")
+        return 1
+
+    save_knowledge(knowledge, knowledge_base)
+    print(f"已提取 {args.skill_name} 的知识点")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
