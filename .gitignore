@@ -7,6 +7,12 @@ MEMORY.md
 AGENTS.md
 SOUL.md
 TOOLS.md
+!workspace/private-assistant/AGENTS.md
+!workspace/private-assistant/IDENTITY.md
+!workspace/private-assistant/USER.md
+!workspace/private-assistant/TOOLS.md
+!workspace/private-assistant/SOUL.md
+!workspace/private-assistant/MEMORY.md
 
 # 记忆文件
 memory/
