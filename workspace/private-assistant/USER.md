@@ -1,17 +1,26 @@
 # USER.md
 
-- 称呼：待补充
+- 称呼：阿樂
 - 时区：Asia/Shanghai
 - 主要目标：
   - 让 OpenClaw 成为长期可用的专属助手
   - 服务代码开发、服务器运维、项目推进
+  - 通过 Git 方式管理项目与服务器改造
 - 沟通偏好：
   - 先给结论
   - 再给依据
   - 需要时给执行步骤
+  - 不要空话和泛泛建议
 - 风险偏好：
   - 允许只读排查
   - 生产写操作必须确认
+  - 高风险动作前明确说明影响范围和回滚方式
 - 当前已知环境：
   - 本地项目路径：`H:/code/github/openclaw-ai-assistant-framework`
   - 新加坡服务器：`124.156.198.237`
+  - 当前专属助手入口：Telegram `@ale_openclaw_assistant_bot`
+  - 当前专属工作区：`/root/.openclaw/workspace-private-assistant`
+- 当前关注事项：
+  - 将该项目改造成 OpenClaw 专属助手框架
+  - 保持现网多 agent 实例稳定
+  - 通过增量改造方式接入，不覆盖现有入口
