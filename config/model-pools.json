@@ -3,40 +3,40 @@
   "pools": {
     "fast": {
       "name": "高速池",
-      "description": "简单日常会话、要求响应快、token便宜",
-      "primary": "zai/glm-4.7",
-      "fallback": "zai/glm-4.7",
-      "use_cases": ["闲聊", "简单查询", "快速响应"],
-      "keywords": ["快速", "简单", "闲聊"]
+      "description": "快速响应与轻量任务优先，主打低延迟中文问答和基础执行。",
+      "primary": "qnaigc/minimax/minimax-m2.5",
+      "fallback": "qnaigc/z-ai/glm-4.7",
+      "use_cases": ["快速排查", "简单查询", "短任务执行"],
+      "keywords": ["快速", "简单", "排查"]
     },
     "smart": {
       "name": "智能池",
-      "description": "大型复杂任务、高强度推理、要求模型能力强",
-      "primary": "zai/glm-5",
-      "fallback": "zai/glm-5",
-      "use_cases": ["复杂推理", "代码编写", "策略制定", "深度分析"],
+      "description": "复杂推理、代码改造和方案设计的主脑，优先保证综合能力与稳定性。",
+      "primary": "packycode/gpt-5.2",
+      "fallback": "qnaigc/openai/gpt-5.4",
+      "use_cases": ["复杂推理", "代码编写", "方案设计", "深度分析"],
       "keywords": ["推理", "分析", "编程", "复杂"]
     },
     "text": {
       "name": "文本池",
-      "description": "处理文本相关任务、推理能力+上下文处理",
-      "primary": "zai/glm-5",
-      "fallback": "zai/glm-4.7",
+      "description": "中文文档处理、长文本分析与内容整理优先，偏重归纳和表达质量。",
+      "primary": "qnaigc/qwen3-max",
+      "fallback": "qnaigc/moonshotai/kimi-k2.5",
       "use_cases": ["长文本处理", "文档分析", "内容创作"],
       "keywords": ["文档", "长文本", "内容", "写作"]
     },
     "vision": {
       "name": "视觉池",
-      "description": "图片、视频、多模态任务",
-      "primary": "zai/glm-4.6v",
-      "fallback": "zai/glm-4.6v",
-      "use_cases": ["图片分析", "视频理解", "多模态任务"],
+      "description": "当前实例尚未单独配置视觉模型，先用主模型占位，避免健康检查误报。",
+      "primary": "packycode/gpt-5.3-codex",
+      "fallback": "packycode/gpt-5.3-codex",
+      "use_cases": ["截图理解", "图片说明", "多模态占位"],
       "keywords": ["图片", "视频", "视觉", "看图", "多模态"]
     }
   },
   "default_pool": "smart",
   "health_check": {
     "interval_hours": 6,
-    "checks": ["api_reachable", "token_balance", "rate_limit", "response_time"]
+    "checks": ["api_reachable", "model_registered", "response_path"]
   }
 }
